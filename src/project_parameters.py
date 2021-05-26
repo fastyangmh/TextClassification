@@ -85,9 +85,9 @@ class ProjectParameters:
         # data preparation
         if project_parameters.predefined_dataset is not None:
             if project_parameters.predefined_dataset == 'AG_NEWS':
-                pass
+                project_parameters.num_classes = 4
             elif project_parameters.predefined_dataset == 'IMDB':
-                pass
+                project_parameters.num_classes = 2
             else:
                 assert False, 'please check the predefined dataset. the predefined dataset: {}'.format(
                     project_parameters.predefined_dataset)
