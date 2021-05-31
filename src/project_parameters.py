@@ -43,10 +43,16 @@ class ProjectParameters:
         ), help='how many subprocesses to use for data loading.')
         self._parser.add_argument(
             '--no_balance', action='store_true', default=False, help='whether to balance the data.')
+        self._parser.add_argument('--max_length', type=int, default=512,
+                                  help='pad to a maximum length specified with the argument max_length or to the maximum acceptable input length for the model if that argument is not provided.')
 
         # model
         self._parser.add_argument('--backbone_model', type=str, choices=[
                                   'DistilBert'], required=True, help='if you want to use a self-defined model, give the path of the self-defined model. otherwise, the provided backbone model is as followed by the transformers packages.')
+
+        # debug
+        self._parser.add_argument(
+            '--max_files', type=self._str_to_int, default=None, help='the maximum number of files for loading files.')
 
     def _str_to_int(self, s):
         return None if s == 'None' or s == 'none' else int(s)
