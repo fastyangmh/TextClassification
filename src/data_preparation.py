@@ -4,16 +4,14 @@ from src.project_parameters import ProjectParameters
 from pytorch_lightning import LightningDataModule
 from torchvision.datasets import DatasetFolder
 from os.path import join
-from transformers import DistilBertTokenizerFast
 from torchtext.utils import download_from_url, extract_archive
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import os
 import numpy as np
+from src.utils import get_class_from_file, CreateTransformersSequenceModel
 
-# global variables
-TOKENIZER = {
-    'DistilBert': "DistilBertTokenizerFast.from_pretrained('distilbert-base-uncased')"}
+# system variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # class
@@ -23,7 +21,8 @@ class TextFolder(DatasetFolder):
     def __init__(self, root, project_parameters, max_length):
         super().__init__(root, extensions=('.txt'), loader=None)
         self.project_parameters = project_parameters
-        self.tokenizer = eval(TOKENIZER[project_parameters.backbone_model])
+        self.tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
+        ).create_tokenizer(model_id=project_parameters.backbone_model)
         self.max_length = max_length
 
     def __getitem__(self, index):
@@ -39,7 +38,8 @@ class IMDB(Dataset):
         self.root = root
         self.split = split
         self._download_data()
-        self.tokenizer = eval(TOKENIZER[project_parameters.backbone_model])
+        self.tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
+        ).create_tokenizer(model_id=project_parameters.backbone_model)
         self.class_to_idx = {k: idx for idx,
                              k in enumerate(sorted(['neg', 'pos']))}
         self.max_length = max_length
@@ -76,7 +76,8 @@ class AG_NEWS(Dataset):
         self.root = root
         self.split = split
         self._download_data()
-        self.tokenizer = eval(TOKENIZER[project_parameters.backbone_model])
+        self.tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
+        ).create_tokenizer(model_id=project_parameters.backbone_model)
         self.class_to_idx = {'World': 1, 'Sports': 2,
                              'Business': 3, 'Sci/Tech': 4}
         self.max_length = max_length
