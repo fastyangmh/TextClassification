@@ -2,7 +2,7 @@
 import argparse
 from os import makedirs
 import torch
-from src.utils import load_yaml
+from src.utils import load_yaml, CreateTransformersSequenceModel
 from os.path import abspath, isfile, join
 
 # class
@@ -49,7 +49,7 @@ class ProjectParameters:
         self._parser.add_argument('--tokenizer', type=str, default=None,
                                   help='if you want to use a self-defined tokenizer, give the class name of the tokenizer from the backbone model file. otherwise, the provided tokenizer is as followed by the transformers packages.')
         self._parser.add_argument('--backbone_model', type=str, required=True,
-                                  help='if you want to use a self-defined model, give the path of the self-defined model. otherwise, the provided backbone model is as followed by the transformers packages.')
+                                  help='if you want to use a self-defined model, give the path of the self-defined model. otherwise, the provided backbone model is as a followed list. {}'.format(CreateTransformersSequenceModel().list_models()))
         self._parser.add_argument('--checkpoint_path', type=str, default=None,
                                   help='the path of the pre-trained model checkpoint.')
         self._parser.add_argument('--optimizer_config_path', type=str,
@@ -125,13 +125,6 @@ class ProjectParameters:
                         project_parameters.tokenizer)
             else:
                 assert False, 'please give the class name of tokenizer from the backbone model file.'
-        else:
-            tokenizer = {
-                'DistilBert': "DistilBertTokenizerFast.from_pretrained('distilbert-base-uncased')"}
-            backbone_model = {
-                'DistilBert': "DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased')"}
-            project_parameters.tokenizer = tokenizer[project_parameters.backbone_model]
-            project_parameters.backbone_model = backbone_model[project_parameters.backbone_model]
         if project_parameters.checkpoint_path is not None and isfile(project_parameters.checkpoint_path):
             project_parameters.checkpoint_path = abspath(
                 project_parameters.checkpoint_path)

@@ -8,7 +8,7 @@ import torch.nn as nn
 from pytorch_lightning.metrics import Accuracy, ConfusionMatrix
 import pandas as pd
 import numpy as np
-from src.utils import load_checkpoint, load_yaml, get_class_from_file
+from src.utils import CreateTransformersSequenceModel, load_checkpoint, load_yaml, get_class_from_file
 import torch.optim as optim
 import transformers
 
@@ -16,11 +16,9 @@ import transformers
 
 
 def _get_backbone_model(project_parameters):
-    if project_parameters.backbone_model.split('.')[0] in dir(transformers):
-        backbone_model = eval('transformers.{}'.format(
-            project_parameters.backbone_model))
-        backbone_model.classifier = nn.Linear(
-            in_features=backbone_model.classifier.in_features, out_features=project_parameters.num_classes)
+    if project_parameters.backbone_model in CreateTransformersSequenceModel().list_models():
+        backbone_model = CreateTransformersSequenceModel().create_model(
+            model_id=project_parameters.backbone_model, num_classes=project_parameters.num_classes)
     elif '.py' in project_parameters.backbone_model:
         backbone_model = get_class_from_file(filepath=project_parameters.backbone_model, class_name=basename(
             project_parameters.backbone_model).split('.')[0])
@@ -190,8 +188,8 @@ if __name__ == '__main__':
     model.summarize()
 
     # create input data
-    tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else eval(
-        'transformers.{}'.format(project_parameters.tokenizer))
+    tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
+    ).create_tokenizer(model_id=project_parameters.backbone_model)
     x = tokenizer('Hello World!', padding='max_length', truncation=True,
                   max_length=project_parameters.max_length, return_tensors="pt")
 
