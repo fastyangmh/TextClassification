@@ -1,10 +1,9 @@
 # import
 import argparse
 from os import makedirs
-from posixpath import join
 import torch
 from src.utils import load_yaml
-from os.path import abspath
+from os.path import abspath, isfile, join
 
 # class
 
@@ -47,8 +46,14 @@ class ProjectParameters:
                                   help='pad to a maximum length specified with the argument max_length or to the maximum acceptable input length for the model if that argument is not provided.')
 
         # model
-        self._parser.add_argument('--backbone_model', type=str, choices=[
-                                  'DistilBert'], required=True, help='if you want to use a self-defined model, give the path of the self-defined model. otherwise, the provided backbone model is as followed by the transformers packages.')
+        self._parser.add_argument('--tokenizer', type=str, default=None,
+                                  help='if you want to use a self-defined tokenizer, give the class name of the tokenizer from the backbone model file. otherwise, the provided tokenizer is as followed by the transformers packages.')
+        self._parser.add_argument('--backbone_model', type=str, required=True,
+                                  help='if you want to use a self-defined model, give the path of the self-defined model. otherwise, the provided backbone model is as followed by the transformers packages.')
+        self._parser.add_argument('--checkpoint_path', type=str, default=None,
+                                  help='the path of the pre-trained model checkpoint.')
+        self._parser.add_argument('--optimizer_config_path', type=str,
+                                  default='config/optimizer.yaml', help='the optimizer config path.')
 
         # debug
         self._parser.add_argument(
@@ -102,6 +107,34 @@ class ProjectParameters:
                 c: idx for idx, c in enumerate(sorted(project_parameters.classes))}
             project_parameters.num_classes = len(project_parameters.classes)
         project_parameters.use_balance = not project_parameters.no_balance and project_parameters.predefined_dataset is None
+
+        # model
+        project_parameters.optimizer_config_path = abspath(
+            project_parameters.optimizer_config_path)
+        if isfile(project_parameters.backbone_model):
+            project_parameters.backbone_model = abspath(
+                project_parameters.backbone_model)
+            if project_parameters.tokenizer is not None:
+                error = True
+                with open(project_parameters.backbone_model, 'r') as f:
+                    for content in f.readlines():
+                        if 'class {}'.format(project_parameters.tokenizer) in content:
+                            error = False
+                            break
+                    assert not error, 'there does not exist any tokenizer in the backbone_model. the class name of tokenizer is: {}'.format(
+                        project_parameters.tokenizer)
+            else:
+                assert False, 'please give the class name of tokenizer from the backbone model file.'
+        else:
+            tokenizer = {
+                'DistilBert': "DistilBertTokenizerFast.from_pretrained('distilbert-base-uncased')"}
+            backbone_model = {
+                'DistilBert': "DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased')"}
+            project_parameters.tokenizer = tokenizer[project_parameters.backbone_model]
+            project_parameters.backbone_model = backbone_model[project_parameters.backbone_model]
+        if project_parameters.checkpoint_path is not None and isfile(project_parameters.checkpoint_path):
+            project_parameters.checkpoint_path = abspath(
+                project_parameters.checkpoint_path)
 
         return project_parameters
 
