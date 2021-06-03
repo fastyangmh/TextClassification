@@ -46,8 +46,6 @@ class ProjectParameters:
                                   help='pad to a maximum length specified with the argument max_length or to the maximum acceptable input length for the model if that argument is not provided.')
 
         # model
-        self._parser.add_argument('--tokenizer', type=str, default=None,
-                                  help='if you want to use a self-defined tokenizer, give the class name of the tokenizer from the backbone model file. otherwise, the provided tokenizer is as followed by the transformers packages.')
         self._parser.add_argument('--backbone_model', type=str, required=True,
                                   help='if you want to use a self-defined model, give the path of the self-defined model. otherwise, the provided backbone model is as a followed list. {}'.format(CreateTransformersSequenceModel().list_models()))
         self._parser.add_argument('--checkpoint_path', type=str, default=None,
@@ -55,9 +53,31 @@ class ProjectParameters:
         self._parser.add_argument('--optimizer_config_path', type=str,
                                   default='config/optimizer.yaml', help='the optimizer config path.')
 
+        # train
+        self._parser.add_argument('--val_iter', type=self._str_to_int,
+                                  default=None, help='the number of validation iteration.')
+        self._parser.add_argument(
+            '--lr', type=float, default=1e-3, help='the learning rate.')
+        self._parser.add_argument(
+            '--train_iter', type=int, default=100, help='the number of training iteration.')
+        self._parser.add_argument('--lr_scheduler', type=str, default='CosineAnnealingLR', choices=[
+                                  'StepLR', 'CosineAnnealingLR'], help='the lr scheduler while training model.')
+        self._parser.add_argument(
+            '--step_size', type=int, default=10, help='period of learning rate decay.')
+        self._parser.add_argument('--gamma', type=int, default=0.1,
+                                  help='multiplicative factor of learning rate decay.')
+        self._parser.add_argument('--no_early_stopping', action='store_true',
+                                  default=False, help='whether to use early stopping while training.')
+        self._parser.add_argument('--patience', type=int, default=3,
+                                  help='number of checks with no improvement after which training will be stopped.')
+
         # debug
         self._parser.add_argument(
             '--max_files', type=self._str_to_int, default=None, help='the maximum number of files for loading files.')
+        self._parser.add_argument('--profiler', type=str, default=None, choices=[
+            'simple', 'advanced'], help='to profile individual steps during training and assist in identifying bottlenecks.')
+        self._parser.add_argument('--weights_summary', type=str, default=None, choices=[
+                                  'top', 'full'], help='prints a summary of the weights when training begins.')
 
     def _str_to_int(self, s):
         return None if s == 'None' or s == 'none' else int(s)
@@ -114,20 +134,17 @@ class ProjectParameters:
         if isfile(project_parameters.backbone_model):
             project_parameters.backbone_model = abspath(
                 project_parameters.backbone_model)
-            if project_parameters.tokenizer is not None:
-                error = True
-                with open(project_parameters.backbone_model, 'r') as f:
-                    for content in f.readlines():
-                        if 'class {}'.format(project_parameters.tokenizer) in content:
-                            error = False
-                            break
-                    assert not error, 'there does not exist any tokenizer in the backbone_model. the class name of tokenizer is: {}'.format(
-                        project_parameters.tokenizer)
-            else:
-                assert False, 'please give the class name of tokenizer from the backbone model file.'
         if project_parameters.checkpoint_path is not None and isfile(project_parameters.checkpoint_path):
             project_parameters.checkpoint_path = abspath(
                 project_parameters.checkpoint_path)
+
+        # train
+        if project_parameters.val_iter is None:
+            project_parameters.val_iter = project_parameters.train_iter
+        project_parameters.use_early_stopping = not project_parameters.no_early_stopping
+        if project_parameters.use_early_stopping:
+            # because the PyTorch lightning needs to get validation loss in every training epoch.
+            project_parameters.val_iter = 1
 
         return project_parameters
 

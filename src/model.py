@@ -10,7 +10,10 @@ import pandas as pd
 import numpy as np
 from src.utils import CreateTransformersSequenceModel, load_checkpoint, load_yaml, get_class_from_file
 import torch.optim as optim
-import transformers
+import os
+
+# system variables
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # def
 
@@ -85,6 +88,8 @@ class Net(LightningModule):
     def __init__(self, project_parameters):
         super().__init__()
         self.project_parameters = project_parameters
+        self.tokenizer = None if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
+        ).create_tokenizer(model_id=project_parameters.backbone_model)
         self.backbone_model = _get_backbone_model(
             project_parameters=project_parameters)
         self.activation_function = nn.Softmax(dim=-1)
@@ -95,7 +100,12 @@ class Net(LightningModule):
             num_classes=project_parameters.num_classes)
 
     def forward(self, x):
-        return self.activation_function(self.backbone_model(**x).logits)
+        if self.tokenizer is not None:
+            x = self.tokenizer(list(x), padding='max_length', truncation=True,
+                               max_length=self.project_parameters.max_length, return_tensors="pt")
+            return self.activation_function(self.backbone_model(**x).logits)
+        else:
+            return self.activation_function(self.backbone_model(x))
 
     def get_progress_bar_dict(self):
         # don't show the loss value
@@ -126,7 +136,8 @@ class Net(LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.backbone_model(**x).logits
+        #y_hat = self.backbone_model(**x).logits
+        y_hat = self.forward(x)
         loss = self.loss_function(y_hat, y)
         train_step_accuracy = self.accuracy(y_hat, y)
         return {'loss': loss, 'accuracy': train_step_accuracy}
@@ -188,15 +199,11 @@ if __name__ == '__main__':
     model.summarize()
 
     # create input data
-    tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
-    ).create_tokenizer(model_id=project_parameters.backbone_model)
-    x = tokenizer('Hello World!', padding='max_length', truncation=True,
-                  max_length=project_parameters.max_length, return_tensors="pt")
+    x = ['Hello World!']*10
 
     # get model output
-    y = model.forward(x)
+    y = model(x)
 
     # display the dimension of input and output
-    print(x['input_ids'].shape)
-    print(x['attention_mask'].shape)
+    print(len(x))
     print(y.shape)
