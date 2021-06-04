@@ -1,10 +1,11 @@
 # import
 from ruamel.yaml import safe_load
 import torch
-from os.path import basename, dirname
+from os.path import basename, dirname, join
 import torch.nn as nn
 import transformers
 import pandas as pd
+from glob import glob
 
 # def
 
@@ -35,6 +36,26 @@ def load_checkpoint(model, use_cuda, checkpoint_path):
         checkpoint['state_dict']['loss_function.weight'] = model.loss_function.weight
     model.load_state_dict(checkpoint['state_dict'])
     return model
+
+
+def get_files(filepath, file_type):
+    files = []
+    if type(file_type) != list:
+        file_type = [file_type]
+    for v in file_type:
+        files += sorted(glob(join(filepath, '*.{}'.format(v))))
+    return files
+
+
+def calculate_data_weight(classes, data_path):
+    data_weight = {}
+    for c in classes.keys():
+        files = get_files(filepath=join(
+            data_path, 'train/{}'.format(c)), file_type=['txt'])
+        data_weight[c] = len(files)
+    data_weight = {c: 1-(data_weight[c]/sum(data_weight.values()))
+                   for c in data_weight.keys()}
+    return data_weight
 
 # class
 

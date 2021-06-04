@@ -7,42 +7,30 @@ from os.path import join
 from torchtext.utils import download_from_url, extract_archive
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
-import os
 import numpy as np
-from src.utils import get_class_from_file, CreateTransformersSequenceModel
-
-# system variables
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # class
 
 
 class TextFolder(DatasetFolder):
-    def __init__(self, root, project_parameters, max_length):
+    def __init__(self, root):
         super().__init__(root, extensions=('.txt'), loader=None)
-        self.project_parameters = project_parameters
-        self.tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
-        ).create_tokenizer(model_id=project_parameters.backbone_model)
-        self.max_length = max_length
 
     def __getitem__(self, index):
         filepath, label = self.samples[index]
         with open(filepath, 'r') as f:
             text = f.readline()
-        return self.tokenizer(text, padding='max_length', truncation=True, max_length=self.max_length, return_tensors="pt"), label
+        return text, label
 
 
 class IMDB(Dataset):
-    def __init__(self, root, split, max_length):
+    def __init__(self, root, split):
         super().__init__()
         self.root = root
         self.split = split
         self._download_data()
-        self.tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
-        ).create_tokenizer(model_id=project_parameters.backbone_model)
         self.class_to_idx = {k: idx for idx,
                              k in enumerate(sorted(['neg', 'pos']))}
-        self.max_length = max_length
 
     def _download_data(self):
         URL = 'http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz'
@@ -67,20 +55,17 @@ class IMDB(Dataset):
     def __getitem__(self, index):
         data, label = self.samples[index]
         label = self.class_to_idx[label]
-        return self.tokenizer(data, padding='max_length', truncation=True, max_length=self.max_length, return_tensors="pt"), label
+        return data, label
 
 
 class AG_NEWS(Dataset):
-    def __init__(self, root, split, max_length) -> None:
+    def __init__(self, root, split) -> None:
         super().__init__()
         self.root = root
         self.split = split
         self._download_data()
-        self.tokenizer = get_class_from_file(filepath=project_parameters.backbone_model, class_name=project_parameters.tokenizer) if '.py' in project_parameters.backbone_model else CreateTransformersSequenceModel(
-        ).create_tokenizer(model_id=project_parameters.backbone_model)
-        self.class_to_idx = {'World': 1, 'Sports': 2,
-                             'Business': 3, 'Sci/Tech': 4}
-        self.max_length = max_length
+        self.class_to_idx = {'World': 0, 'Sports': 1,
+                             'Business': 2, 'Sci/Tech': 3}
 
     def _download_data(self):
         URL = {'train': "https://raw.githubusercontent.com/mhjabreel/CharCnn_Keras/master/data/ag_news_csv/train.csv",
@@ -91,14 +76,15 @@ class AG_NEWS(Dataset):
                                  path=join(self.root, self.split + ".csv"),
                                  hash_value=MD5[self.split],
                                  hash_type='md5')
-        self.samples = pd.read_csv(path)
+        self.samples = pd.read_csv(
+            path, names=['label', 'title', 'description'])
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, index):
         label, title, description = self.samples.loc[index]
-        return self.tokenizer(description, padding='max_length', truncation=True, max_length=self.max_length, return_tensors="pt"), label
+        return description, label-1
 
 
 class DataModule(LightningDataModule):
@@ -110,8 +96,8 @@ class DataModule(LightningDataModule):
         if self.project_parameters.predefined_dataset is None:
             self.dataset = {}
             for stage in ['train', 'val', 'test']:
-                self.dataset[stage] = TextFolder(root=join(self.project_parameters.data_path, stage),
-                                                 project_parameters=self.project_parameters, max_length=self.project_parameters.max_length)
+                self.dataset[stage] = TextFolder(
+                    root=join(self.project_parameters.data_path, stage))
                 # modify the maximum number of files
                 if self.project_parameters.max_files is not None:
                     lengths = (self.project_parameters.max_files, len(
@@ -125,14 +111,18 @@ class DataModule(LightningDataModule):
                 assert self.dataset['train'].class_to_idx == self.project_parameters.classes, 'the classes is not the same. please check the classes of data. from ImageFolder: {} from argparse: {}'.format(
                     self.dataset[stage].class_to_idx, self.project_parameters.classes)
         else:
-            train_set = eval('{}(root=self.project_parameters.data_path, split="train", max_length=self.project_parameters.max_length)'.format(
+            train_set = eval('{}(root=self.project_parameters.data_path, split="train")'.format(
                 self.project_parameters.predefined_dataset))
-            test_set = eval('{}(root=self.project_parameters.data_path, split="test", max_length=self.project_parameters.max_length)'.format(
+            test_set = eval('{}(root=self.project_parameters.data_path, split="test")'.format(
                 self.project_parameters.predefined_dataset))
             # modify the maximum number of files
             for v in [train_set, test_set]:
-                v.samples = list(np.random.permutation(v.samples))[
-                    :self.project_parameters.max_files]
+                if self.project_parameters.predefined_dataset == 'AG_NEWS':
+                    v.samples = v.samples.iloc[np.random.permutation(v.samples.index)].reset_index(
+                        drop=True)[:self.project_parameters.max_files]
+                elif self.project_parameters.predefined_dataset == 'IMDB':
+                    v.samples = list(np.random.permutation(v.samples))[
+                        :self.project_parameters.max_files]
             train_val_lengths = [round((1-self.project_parameters.val_size)*len(train_set)),
                                  round(self.project_parameters.val_size*len(train_set))]
             train_set, val_set = random_split(
