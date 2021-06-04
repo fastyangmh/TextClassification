@@ -103,6 +103,7 @@ class Net(LightningModule):
         if self.tokenizer is not None:
             x = self.tokenizer(list(x), padding='max_length', truncation=True,
                                max_length=self.project_parameters.max_length, return_tensors="pt")
+            x = x.to(self.device)
             return self.activation_function(self.backbone_model(**x).logits)
         else:
             return self.activation_function(self.backbone_model(x))
