@@ -1,0 +1,13 @@
+ipython
+timm
+torch
+sklearn
+tqdm
+pytorch-lightning
+torchvision
+pandas
+ray[tune]
+ruamel.yaml
+torchtext
+transformers
+lxml
