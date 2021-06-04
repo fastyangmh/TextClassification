@@ -4,6 +4,7 @@ from os import makedirs
 import torch
 from src.utils import load_yaml, CreateTransformersSequenceModel
 from os.path import abspath, isfile, join
+from datetime import datetime
 
 # class
 
@@ -80,6 +81,10 @@ class ProjectParameters:
                                   help='GPU resources to allocate per trial in hyperparameter tuning.')
         self._parser.add_argument('--hyperparameter_config_path', type=str,
                                   default='config/hyperparameter.yaml', help='the hyperparameter config path.')
+
+        # evaluate
+        self._parser.add_argument(
+            '--n_splits', type=int, default=5, help='number of folds. must be at least 2.')
 
         # debug
         self._parser.add_argument(
@@ -165,6 +170,11 @@ class ProjectParameters:
             project_parameters.num_workers = project_parameters.tune_cpu
         project_parameters.hyperparameter_config_path = abspath(
             project_parameters.hyperparameter_config_path)
+
+        # evaluate
+        if project_parameters.mode == 'evaluate':
+            project_parameters.k_fold_data_path = './k_fold_dataset{}'.format(
+                datetime.now().strftime('%Y%m%d%H%M%S'))
 
         return project_parameters
 
