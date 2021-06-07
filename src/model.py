@@ -11,6 +11,7 @@ import numpy as np
 from src.utils import CreateTransformersSequenceModel, load_checkpoint, load_yaml, get_class_from_file
 import torch.optim as optim
 import os
+import torch.nn.functional as F
 
 # system variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -36,7 +37,7 @@ def _get_loss_function(project_parameters):
         weight = torch.Tensor(list(project_parameters.data_weight.values()))
     else:
         weight = None
-    return nn.NLLLoss(weight=weight)
+    return nn.CrossEntropyLoss(weight=weight)
 
 
 def _get_optimizer(model_parameters, project_parameters):
@@ -99,6 +100,15 @@ class Net(LightningModule):
         self.confusion_matrix = ConfusionMatrix(
             num_classes=project_parameters.num_classes)
 
+    def training_forward(self, x):
+        if self.tokenizer is not None:
+            x = self.tokenizer(list(x), padding='max_length', truncation=True,
+                               max_length=self.project_parameters.max_length, return_tensors="pt")
+            x = x.to(self.device)
+            return self.backbone_model(**x).logits
+        else:
+            return self.backbone_model(x)
+
     def forward(self, x):
         if self.tokenizer is not None:
             x = self.tokenizer(list(x), padding='max_length', truncation=True,
@@ -137,10 +147,9 @@ class Net(LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.forward(x)
-        loss = self.loss_function(torch.log(y_hat).nan_to_num(
-            neginf=torch.log(torch.tensor(1e-10))), y)
-        train_step_accuracy = self.accuracy(y_hat, y)
+        y_hat = self.training_forward(x)
+        loss = self.loss_function(y_hat, y)
+        train_step_accuracy = self.accuracy(F.softmax(y_hat), y)
         return {'loss': loss, 'accuracy': train_step_accuracy}
 
     def training_epoch_end(self, outputs) -> None:
@@ -152,10 +161,9 @@ class Net(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.forward(x)
-        loss = self.loss_function(torch.log(y_hat).nan_to_num(
-            neginf=torch.log(torch.tensor(1e-10))), y)
-        val_step_accuracy = self.accuracy(y_hat, y)
+        y_hat = self.training_forward(x)
+        loss = self.loss_function(y_hat, y)
+        val_step_accuracy = self.accuracy(F.softmax(y_hat), y)
         return {'loss': loss, 'accuracy': val_step_accuracy}
 
     def validation_epoch_end(self, outputs) -> None:
@@ -167,11 +175,10 @@ class Net(LightningModule):
 
     def test_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.forward(x)
-        loss = self.loss_function(torch.log(y_hat).nan_to_num(
-            neginf=torch.log(torch.tensor(1e-10))), y)
-        test_step_accuracy = self.accuracy(y_hat, y)
-        return {'loss': loss, 'accuracy': test_step_accuracy, 'y_hat': y_hat, 'y': y}
+        y_hat = self.training_forward(x)
+        loss = self.loss_function(y_hat, y)
+        test_step_accuracy = self.accuracy(F.softmax(y_hat), y)
+        return {'loss': loss, 'accuracy': test_step_accuracy, 'y_hat': F.softmax(y_hat), 'y': y}
 
     def test_epoch_end(self, outputs) -> None:
         epoch_loss, epoch_accuracy, confmat = self._parse_outputs(
